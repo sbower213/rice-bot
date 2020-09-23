@@ -61,7 +61,22 @@ client.on('ready', () => {
     // set up necessary files
     if (fs.existsSync('./auction.json')) {
         auctionData = fs.readFileSync('./auction.json')
-        auction = JSON.parse(auctionData)
+        try {
+            auction = JSON.parse(auctionData)
+        } catch(e) {
+            console.log(e)
+            console.log("Error parsing auction.json, initializing with blank auction.")
+            auction = {
+                auctionInProgress: false
+            }
+            fs.renameSync('./auction.json', './auction.json-' + Date.now())
+            fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
+                if (err) {
+                    console.log('error', err);
+                    msg.channel.send('Error writing `auction.json`. Check logs for details.')
+                }
+            })
+        }
     } else {
         auction = {
             auctionInProgress: false
@@ -82,6 +97,44 @@ client.on('ready', () => {
                 console.log('error', err);
             }
         })
+    } else {
+        prizesData = fs.readFileSync('./prizes.json')
+        try {
+            prizes = JSON.parse(prizesData)
+        } catch(e) {
+            console.log(e)
+            console.log("Error parsing prizes.json, initializing with empty json.")
+            fs.renameSync('./prizes.json', './prizes.json-' + Date.now())
+            fs.writeFile('./prizes.json', JSON.stringify({}), function(err, result) {
+                if (err) {
+                    console.log('error', err);
+                    msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                }
+            })
+        }
+    }
+
+    if(!fs.existsSync('./scoreboard.json')) {
+        fs.writeFile('./scoreboard.json', JSON.stringify({}), function(err, result) {
+            if(err) {
+                console.log('error', err);
+            }
+        })
+    } else {
+        scoreboardData = fs.readFileSync('./scoreboard.json')
+        try {
+            scoreboard = JSON.parse(scoreboardData)
+        } catch(e) {
+            console.log(e)
+            console.log("Error parsing scoreboard.json, initializing with empty json.")
+            fs.renameSync('./scoreboard.json', './scoreboard.json-' + Date.now())
+            fs.writeFile('./scoreboard.json', JSON.stringify({}), function(err, result) {
+                if (err) {
+                    console.log('error', err);
+                    msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                }
+            })
+        }
     }
 });
 
@@ -125,7 +178,7 @@ function sortByValue(jsObj){
 
 client.on('message', msg => {
     if (msg.content === 'ping') {
-        console.log(msg.userId)
+        console.log(msg.author.id)
         msg.reply('fuck off, ' + idToUserMap[msg.author.id]);
     }
 
@@ -165,7 +218,7 @@ client.on('message', msg => {
                 //     scoreMessage += name + ": " + score + "\n"
                 // }
                 for(var i=0; i<sortedScoreboard.length; i++) {
-                    scoreMessage += sortedScoreboard[i] + "\n"
+                    scoreMessage += sortedScoreboard[i][1] + ": " + sortedScoreboard[i][0] + "\n"
                 }
                 msg.channel.send(scoreMessage)
                 break;
@@ -250,6 +303,7 @@ client.on('message', msg => {
                 } else {
                     msg.channel.send('Error making bid: No auction in progress.')
                 }
+    // todo: don't let the person who created the auction bid
                 break;
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
@@ -276,7 +330,7 @@ client.on('message', msg => {
             case 'endAuction':
                 // [shouldUpdateScore]
                 // force auction to end, even if people haven't voted
-                // requires boolean to be passed for whether or not scores should be updated 
+        //todo: requires boolean to be passed for whether or not scores should be updated 
                 if (!auction.auctionInProgress) {
                     msg.channel.send("No auction in progress.")
                 } else {
@@ -360,7 +414,13 @@ client.on('message', msg => {
                     })
                     msg.channel.send("Auction ended for " + auction.itemName + ".\n"
                     + "The price is $" + auction.price)
+                    msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
                 }
+                break;
+            case 'addBidder':
+                // !rice addBidder username name to keep names json updated
+                // should this just be used as opt-in?
+                // how to update names for existing bidders if desired
                 break;
         }
     }
