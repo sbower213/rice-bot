@@ -1,6 +1,7 @@
 // Run dotenv
 require('dotenv').config();
 const fs = require('fs')
+var _ = require('lodash');
 
 const Discord = require('discord.js');
 const client = new Discord.Client();
@@ -74,6 +75,14 @@ client.on('ready', () => {
             }
         })
     }
+
+    if(!fs.existsSync('./prizes.json')) {
+        fs.writeFile('./prizes.json', JSON.stringify({}), function(err, result) {
+            if(err) {
+                console.log('error', err);
+            }
+        })
+    }
 });
 
 function getUserFromMention(mention) {
@@ -102,6 +111,16 @@ function getNameFromMention(mention) {
 
 		return idToUserMap[mention]
 	}
+}
+
+function sortByValue(jsObj){
+    var sortedArray = [];
+    for(var i in jsObj)
+    {
+        // Push each JSON Object entry in array by [value, key]
+        sortedArray.push([jsObj[i], i]);
+    }
+    return sortedArray.sort(([a, b], [c, d]) => c - a);
 }
 
 client.on('message', msg => {
@@ -138,6 +157,17 @@ client.on('message', msg => {
             case 'scoreboard':
                 // display scoreboard, sorted from most points to least
                 // probably use lodash/underscore or smth
+                let scoreboardData = fs.readFileSync('./scoreboard.json')
+                scoreboard = JSON.parse(scoreboardData)
+                const sortedScoreboard = sortByValue(scoreboard)
+                let scoreMessage = '';
+                // for(const [score, name] of sortedScoreboard) {
+                //     scoreMessage += name + ": " + score + "\n"
+                // }
+                for(var i=0; i<sortedScoreboard.length; i++) {
+                    scoreMessage += sortedScoreboard[i] + "\n"
+                }
+                msg.channel.send(scoreMessage)
                 break;
             case 'auction':
                 // [price, name] - use to start a new round of rice bidding for an object named [name],
@@ -204,14 +234,18 @@ client.on('message', msg => {
                         let bidsData = fs.readFileSync('./bids.json')
                         bids = JSON.parse(bidsData)
                         const bidder = idToUserMap[msg.author.id]
-                        bids[bidder] = bid;
-                        fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-                            if (err) {
-                                console.log('error', err);
-                                msg.channel.send('Error writing `bids.json`. Check logs for details.')
-                            }
-                        })
-                        msg.channel.send(bidder + " bids $" + bid)
+                        if (bids[bidder] ==  null) {
+                            bids[bidder] = bid;
+                            fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
+                                if (err) {
+                                    console.log('error', err);
+                                    msg.channel.send('Error writing `bids.json`. Check logs for details.')
+                                }
+                            })
+                            msg.channel.send(bidder + " bids $" + bid)
+                        } else {
+                            msg.channel.send(bidder + " has already bid " + bids[bidder] + " for this auction.")
+                        }
                     }
                 } else {
                     msg.channel.send('Error making bid: No auction in progress.')
@@ -219,6 +253,7 @@ client.on('message', msg => {
                 break;
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
+                // can pass either name or tag thanks to our handy id-name jsons
                 // displays prizes of person who used the command if no user is passed
                 break;
             case 'ping':
@@ -252,6 +287,71 @@ client.on('message', msg => {
                             msg.channel.send('Error writing `auction.json`. Check logs for details.')
                         }
                     })
+
+                    let bidsData = fs.readFileSync('./bids.json')
+                    bids = JSON.parse(bidsData)
+                    
+                    // const bidsEntries = Object.entries(bids);
+                    // const bidArray = []
+                    // for (const [key, value] of bidsEntries) {
+                    //     bidArray.push({"bidder": key, "bid": value})
+                    // }
+
+                    // _.find(bidArray, function())
+                    const losePoints = []
+                    let winner;
+                    let winningPrice = -1;
+
+                    for (const [key, value] of Object.entries(bids)) {
+                        // if they bid above the price, lose points
+                        if (value > auction.price) {
+                            losePoints.push(key)
+                        } else if (value > winningPrice) {
+                            // otherwise, pick the highest bid
+                            winner = key
+                            winningPrice = value
+                        }
+                    }
+
+                    let scoreboardData = fs.readFileSync('./scoreboard.json')
+                    scoreboard = JSON.parse(scoreboardData)
+                    for (const name of losePoints) {
+                        if (scoreboard[name] == null) {
+                            scoreboard[name] = -1
+                        } else {
+                            scoreboard[name] = scoreboard[name] - 1
+                        }
+                    }
+
+                    if (winningPrice == auction.price) {
+                        scoreboard[winner] += 2
+                    } else {
+                        scoreboard[winner] += 1
+                    }
+
+                    fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
+                        if(err) {
+                            console.log('error', err);
+                            msg.channel.send('Error writing `scoreboard.json`. Check logs for details.')
+                        } 
+                    })
+
+                    let prizesData = fs.readFileSync('./prizes.json')
+                    prizes = JSON.parse(prizesData)
+
+                    if (prizes[winner] == null) {
+                        prizes[winner] = [auction.itemName]
+                    } else {
+                        prizes[winner].push(auction.itemName)
+                    }
+
+                    fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
+                        if(err) {
+                            console.log('error', err);
+                            msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                        } 
+                    })
+
                     fs.writeFile('./bids.json', JSON.stringify({}), function(err, result) {
                         if(err) {
                             console.log('error', err);
