@@ -1,0 +1,11 @@
+{
+    "name": "price-is-rice-bot",
+    "version": "1.0.0",
+    "description": "You're the next contestant on... The Price is Rice!",
+    "main": "bot.js",
+    "author": "@meteorbower",
+    "dependencies": {
+        "discord.js": "^12.3.1",
+        "dotenv": "^8.2.0"
+    }
+}
