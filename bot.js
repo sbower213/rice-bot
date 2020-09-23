@@ -4,6 +4,7 @@ const fs = require('fs')
 var _ = require('lodash');
 
 const Discord = require('discord.js');
+const { stringify } = require('querystring');
 const client = new Discord.Client();
 let thotServer;
 let thots;
@@ -310,6 +311,42 @@ client.on('message', msg => {
                 // [(optional) user] - list of prizes a user has won.
                 // can pass either name or tag thanks to our handy id-name jsons
                 // displays prizes of person who used the command if no user is passed
+                let name;
+                if (args[1]) {
+                    name = getNameFromMention(args[1])
+                    if (name == null) {
+                        name = args[1]
+                    }
+                } else {
+                    name = idToUserMap[msg.author.id]
+                }
+                
+                if (name == null) {
+                    msg.channel.send("Cannot determine name parameter.")
+                    break;
+                }
+
+                name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+
+                prizesData = fs.readFileSync('./prizes.json')
+                try {
+                    prizes = JSON.parse(prizesData)
+                    const prizeList = prizes[name]
+
+                    if (prizeList == null) {
+                        msg.channel.send("No prizes found.")
+                        break;
+                    }
+
+                    let messageText = '';
+                    for (let i=0; i < prizeList.length; i++) {
+                        messageText += "\n" + prizeList[i]
+                    }
+                    msg.channel.send(name + "'s Prizes:" + messageText)
+                } catch (e) {
+                    console.log(e)
+                    msg.channel.send('Error reading `prizes.json`. Check logs for details.')
+                }
                 break;
             case 'ping':
                 // pings opted-in users who haven't voted this round
@@ -345,14 +382,7 @@ client.on('message', msg => {
 
                     let bidsData = fs.readFileSync('./bids.json')
                     bids = JSON.parse(bidsData)
-                    
-                    // const bidsEntries = Object.entries(bids);
-                    // const bidArray = []
-                    // for (const [key, value] of bidsEntries) {
-                    //     bidArray.push({"bidder": key, "bid": value})
-                    // }
 
-                    // _.find(bidArray, function())
                     const losePoints = []
                     let winner;
                     let winningPrice = -1;
