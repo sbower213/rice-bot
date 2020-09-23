@@ -12,7 +12,8 @@ let thots;
     {
         inProgress: boolean,
         price: int/float,
-        itemName: String
+        itemName: String,
+        auctioneer: String
     }
 
     inProgress is probably redundant, just set to null when auction ends?
@@ -276,7 +277,7 @@ client.on('message', msg => {
                         msg.channel.send('Error making bid: Invalid input.\n'
                             + 'Usage: `!rice bid <bid amount>`')
                     }
-                    const bid = args[1]
+                    let bid = args[1]
                     if (bid.charAt(0) == '$') {
                         bid = bid.substring(1)
                     }
@@ -297,7 +298,7 @@ client.on('message', msg => {
                             })
                             msg.channel.send(bidder + " bids $" + bid)
                         } else {
-                            msg.channel.send(bidder + " has already bid " + bids[bidder] + " for this auction.")
+                            msg.channel.send(bidder + " has already bid $" + bids[bidder] + " for this auction.")
                         }
                     }
                 } else {
@@ -360,10 +361,12 @@ client.on('message', msg => {
                         // if they bid above the price, lose points
                         if (value > auction.price) {
                             losePoints.push(key)
-                        } else if (value > winningPrice) {
-                            // otherwise, pick the highest bid
-                            winner = key
-                            winningPrice = value
+                        } else {
+                            if (value > winningPrice) {
+                                // otherwise, pick the highest bid under the value
+                                winner = key
+                                winningPrice = value
+                            }
                         }
                     }
 
@@ -377,10 +380,12 @@ client.on('message', msg => {
                         }
                     }
 
-                    if (winningPrice == auction.price) {
-                        scoreboard[winner] += 2
-                    } else {
-                        scoreboard[winner] += 1
+                    if (winningPrice != -1) {
+                        if (winningPrice == auction.price) {
+                            scoreboard[winner] += 2
+                        } else {
+                            scoreboard[winner] += 1
+                        }
                     }
 
                     fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
@@ -393,10 +398,12 @@ client.on('message', msg => {
                     let prizesData = fs.readFileSync('./prizes.json')
                     prizes = JSON.parse(prizesData)
 
-                    if (prizes[winner] == null) {
-                        prizes[winner] = [auction.itemName]
-                    } else {
-                        prizes[winner].push(auction.itemName)
+                    if (winningPrice != -1) {
+                        if (prizes[winner] == null) {
+                            prizes[winner] = [auction.itemName]
+                        } else {
+                            prizes[winner].push(auction.itemName)
+                        }
                     }
 
                     fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
@@ -413,8 +420,12 @@ client.on('message', msg => {
                         } 
                     })
                     msg.channel.send("Auction ended for " + auction.itemName + ".\n"
-                    + "The price is $" + auction.price)
-                    msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
+                    + "The price is $" + auction.price + ".")
+                    if (winningPrice == -1) {
+                        msg.channel.send("Y'all are a bunch of dumbfucks. GO AGAIN!")
+                    } else {
+                        msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
+                    }
                 }
                 break;
             case 'addBidder':
