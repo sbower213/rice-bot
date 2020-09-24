@@ -292,10 +292,10 @@ client.on('message', msg => {
                             msg.channel.send("Error starting auction: Invalid input.\n"
                                 + "Usage: `!rice auction <price in dollars> <item name>`")
                         } else {
-                            for (i = 2; i < args.length - 1; i++) {
+                            for (i = 2; i < args.length; i++) {
                                 name += args[i] + " "
                             }
-                            name += args[args.length - 1]
+                            name = name.trim()
                             auction = {
                                 'auctionInProgress': true,
                                 'price': price,
@@ -373,7 +373,11 @@ client.on('message', msg => {
                 if (args[1]) {
                     name = getNameFromMention(args[1])
                     if (name == null) {
-                        name = args[1]
+                        name = '';
+                        for (let i=1; i < args.length; i++) {
+                            name += args[i] + ' '
+                        }
+                        name = name.trim()
                     }
                 } else {
                     name = idToUserMap[msg.author.id]
@@ -424,6 +428,15 @@ client.on('message', msg => {
                 // user will no longer receive notifications from /ping and will be ignored
                 // from how /bid determines if everyone voted.
                 // (basically just remove ricer role)
+                let optOutMember = msg.mentions.members.first();
+                if (optOutMember == null) {
+                    msg.channel.send('Error: Please tag the user you are opting out.\n'
+                    + 'Usage: `!rice optout <@username>`')
+                    break;
+                }
+
+                optOutMember.roles.remove(process.env.RICER_ROLE)
+                msg.channel.send(idToUserMap[optOutMember.id] + " has had enough rice for now.")
                 break;
             case 'optin':
                 // assign ricer role and add name to users.json + scoreboard
@@ -448,7 +461,7 @@ client.on('message', msg => {
                 nickname += args[args.length-1]
                 nickname = nickname.trim()
 
-                if (userToIdMap[nickname] != null) {
+                if (userToIdMap[nickname] != null && userToIdMap[nickname] != member.id) {
                     msg.channel.send('Error: Nickname already in use.')
                     break;
                 }
