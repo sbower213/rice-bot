@@ -22,13 +22,20 @@ let thots;
 */
 let auction = {
     inProgress: false
-};
+}
+
+let bids = {}
+
+let prizes = {}
 
 // may need a method to update this usermap if the server gets more members
 // use file read/write?
 // probably do that for scoreboard as well
-const idToUserMapData = fs.readFileSync('users.json')
-const idToUserMap = JSON.parse(idToUserMapData)
+// let idToUserMapData = fs.readFileSync('users.json')
+// let idToUserMap = JSON.parse(idToUserMapData)
+
+let idToUserMap = {};
+let userToIdMap = {};
 
 function objectFlip(obj) {
     const ret = {};
@@ -38,27 +45,15 @@ function objectFlip(obj) {
     return ret;
 }
 
-const userToIdMap = objectFlip(idToUserMap)
+//let userToIdMap = objectFlip(idToUserMap)
 
 const PREFIX = "!rice "
 
+// todo: instead of having read/writes everywhere
+// listen for when js object changes and only write then
+
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    thotServer = client.guilds.cache.get('641103933795729439')
-    // map of user ids to user object
-    thots = client.users.cache
-    console.log(thots)
-    let roll = '';
-    thots.forEach(function(user, userId) {
-        roll += userId + ' - ' + user.username + '\n';
-    })
-    console.log(roll)
-    console.log(userToIdMap)
-    // map of snowflake to member object
-    // use function(guildMember, snowflake) callbacks to get guildMember object
-    // which you can then use guildMember.user.username, etc.
-    // PLEASE just use client.users.cache. 
-    // oldthots = thotServer.members.cache
 
     // set up necessary files
     if (fs.existsSync('./auction.json')) {
@@ -68,6 +63,7 @@ client.on('ready', () => {
         } catch(e) {
             console.log(e)
             console.log("Error parsing auction.json, initializing with blank auction.")
+
             auction = {
                 auctionInProgress: false
             }
@@ -75,7 +71,7 @@ client.on('ready', () => {
             fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
                 if (err) {
                     console.log('error', err);
-                    msg.channel.send('Error writing `auction.json`. Check logs for details.')
+                    client.channels.find("name", "ricebot-testing").send('Error writing `auction.json`. Check logs for details.')
                 }
             })
         }
@@ -91,6 +87,23 @@ client.on('ready', () => {
                 console.log('error', err);
             }
         })
+    } else {
+        let bidsData = fs.readFileSync('./bids.json')
+        try {
+            bids = JSON.parse(bidsData)
+        } catch (e) {
+            console.log(e)
+            console.log("Error reading from bids.json, initializing with empty JSON.")
+
+            bids = {}
+            fs.renameSync('./bids.json', './bids.json-' + Date.now())
+            fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
+                if (err) {
+                    console.log('error', err);
+                    client.channels.find("name", "ricebot-testing").send('Error writing `bids.json`. Check logs for details.')
+                }
+            })
+        }
     }
 
     if(!fs.existsSync('./prizes.json')) {
@@ -106,11 +119,12 @@ client.on('ready', () => {
         } catch(e) {
             console.log(e)
             console.log("Error parsing prizes.json, initializing with empty json.")
+            prizes = {}
             fs.renameSync('./prizes.json', './prizes.json-' + Date.now())
-            fs.writeFile('./prizes.json', JSON.stringify({}), function(err, result) {
+            fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
                 if (err) {
                     console.log('error', err);
-                    msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                    client.channels.find("name", "ricebot-testing").send('Error writing `prizes.json`. Check logs for details.')
                 }
             })
         }
@@ -129,15 +143,53 @@ client.on('ready', () => {
         } catch(e) {
             console.log(e)
             console.log("Error parsing scoreboard.json, initializing with empty json.")
+            scoreboard = {}
             fs.renameSync('./scoreboard.json', './scoreboard.json-' + Date.now())
-            fs.writeFile('./scoreboard.json', JSON.stringify({}), function(err, result) {
+            fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
                 if (err) {
                     console.log('error', err);
-                    msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                    client.channels.find("name", "ricebot-testing").send('Error writing `scoreboard.json`. Check logs for details.')
                 }
             })
         }
     }
+
+    if (fs.existsSync('./users.json')) {
+        usersData = fs.readFileSync('./users.json')
+        try {
+            idToUserMap = JSON.parse(usersData)
+            userToIdMap = objectFlip(idToUserMap)
+        } catch(e) {
+            console.log(e)
+            console.log("Error parsing users.json, initializing with blank JSON.")
+            idToUserMap = {}
+            userToIdMap = {}
+            fs.renameSync('./users.json', './users.json-' + Date.now())
+            fs.writeFile('./users.json', JSON.stringify(idToUserMap), function(err, result) {
+                if (err) {
+                    console.log('error', err);
+                    client.channels.find("name", "ricebot-testing").send('Error writing `users.json`. Check logs for details.')
+                }
+            })
+        }
+    } else {
+        fs.writeFile('./users.json', JSON.stringify({}), function(err, result) {
+            if(err) {
+                console.log('error', err);
+            }
+        })
+    }
+
+    thotServer = client.guilds.cache.get(process.env.SERVER_ID)
+    // map of user ids to user object
+    thots = client.users.cache
+    console.log(thots)
+    let roll = '';
+    thots.forEach(function(user, userId) {
+        roll += userId + ' - ' + user.username + '\n';
+    })
+    console.log(roll)
+    console.log(userToIdMap)
 });
 
 function getUserFromMention(mention) {
@@ -179,16 +231,15 @@ function sortByValue(jsObj){
 }
 
 client.on('message', msg => {
-    if (msg.content === 'ping') {
+    if (msg.content.toLowerCase() === 'ping') {
         console.log(msg.author.id)
         msg.reply('fuck off, ' + idToUserMap[msg.author.id]);
     }
 
-    // msg.delete() to delete message
-    if (msg.content.substring(0, PREFIX.length) == PREFIX) {
+    if (msg.content.substring(0, PREFIX.length).toLowerCase() == PREFIX) {
         let args = msg.content.substring(PREFIX.length).split(" ")
         console.log(args)
-        switch(args[0]) {
+        switch(args[0].toLowerCase()) {
             case 'rollcall':
                 let roll = '';
                 // const thots = thotServer.members.cache
@@ -211,14 +262,11 @@ client.on('message', msg => {
             /* actual functionality */
             case 'scoreboard':
                 // display scoreboard, sorted from most points to least
-                // probably use lodash/underscore or smth
                 let scoreboardData = fs.readFileSync('./scoreboard.json')
                 scoreboard = JSON.parse(scoreboardData)
                 const sortedScoreboard = sortByValue(scoreboard)
+
                 let scoreMessage = '';
-                // for(const [score, name] of sortedScoreboard) {
-                //     scoreMessage += name + ": " + score + "\n"
-                // }
                 for(var i=0; i<sortedScoreboard.length; i++) {
                     scoreMessage += sortedScoreboard[i][1] + ": " + sortedScoreboard[i][0] + "\n"
                 }
@@ -250,7 +298,8 @@ client.on('message', msg => {
                             auction = {
                                 'auctionInProgress': true,
                                 'price': price,
-                                'itemName': name
+                                'itemName': name,
+                                'auctioneer': idToUserMap[msg.author.id]
                             }
                             console.log(auction)
                             fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
@@ -278,34 +327,37 @@ client.on('message', msg => {
                         msg.channel.send('Error making bid: Invalid input.\n'
                             + 'Usage: `!rice bid <bid amount>`')
                     }
-                    let bid = args[1]
-                    if (bid.charAt(0) == '$') {
-                        bid = bid.substring(1)
-                    }
-                    if (isNaN(bid)) {
-                        msg.channel.send('Error making bid: Invalid input.\n'
-                            + 'Usage: `!rice bid <bid amount>`')
+                    if (auction.auctioneer == idToUserMap[msg.author.id]) {
+                        msg.channel.send('Error making bid: Auctioneer cannot bid for their own item.')
                     } else {
-                        let bidsData = fs.readFileSync('./bids.json')
-                        bids = JSON.parse(bidsData)
-                        const bidder = idToUserMap[msg.author.id]
-                        if (bids[bidder] ==  null) {
-                            bids[bidder] = bid;
-                            fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-                                if (err) {
-                                    console.log('error', err);
-                                    msg.channel.send('Error writing `bids.json`. Check logs for details.')
-                                }
-                            })
-                            msg.channel.send(bidder + " bids $" + bid)
+                        let bid = args[1]
+                        if (bid.charAt(0) == '$') {
+                            bid = bid.substring(1)
+                        }
+                        if (isNaN(bid)) {
+                            msg.channel.send('Error making bid: Invalid input.\n'
+                                + 'Usage: `!rice bid <bid amount>`')
                         } else {
-                            msg.channel.send(bidder + " has already bid $" + bids[bidder] + " for this auction.")
+                            // let bidsData = fs.readFileSync('./bids.json')
+                            // bids = JSON.parse(bidsData)
+                            const bidder = idToUserMap[msg.author.id]
+                            if (bids[bidder] ==  null) {
+                                bids[bidder] = bid;
+                                fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
+                                    if (err) {
+                                        console.log('error', err);
+                                        msg.channel.send('Error writing `bids.json`. Check logs for details.')
+                                    }
+                                })
+                                msg.channel.send(bidder + " bids $" + bid)
+                            } else {
+                                msg.channel.send(bidder + " has already bid $" + bids[bidder] + " for this auction.")
+                            }
                         }
                     }
                 } else {
                     msg.channel.send('Error making bid: No auction in progress.')
                 }
-    // todo: don't let the person who created the auction bid
                 break;
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
@@ -328,9 +380,9 @@ client.on('message', msg => {
 
                 name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 
-                prizesData = fs.readFileSync('./prizes.json')
-                try {
-                    prizes = JSON.parse(prizesData)
+                // prizesData = fs.readFileSync('./prizes.json')
+                // try {
+                    // prizes = JSON.parse(prizesData)
                     const prizeList = prizes[name]
 
                     if (prizeList == null) {
@@ -343,10 +395,10 @@ client.on('message', msg => {
                         messageText += "\n" + prizeList[i]
                     }
                     msg.channel.send(name + "'s Prizes:" + messageText)
-                } catch (e) {
-                    console.log(e)
-                    msg.channel.send('Error reading `prizes.json`. Check logs for details.')
-                }
+                // } catch (e) {
+                    // console.log(e)
+                    // msg.channel.send('Error reading `prizes.json`. Check logs for details.')
+                // }
                 break;
             case 'ping':
                 // pings opted-in users who haven't voted this round
@@ -357,15 +409,34 @@ client.on('message', msg => {
                 // (basically just remove ricer role)
                 break;
             case 'optin':
-                // assign ricer role
+                // assign ricer role and add name to users.json + scoreboard
+                // alert if name already exists or if user is already playing
+                if (args.length < 3) {
+                    msg.channel.send('Error making bid: Invalid input.\n'
+                        + 'Usage: `!rice optin <@username> <preferred name>`')
+                    break;
+                }
+
+                let role = message.guild.roles.find(r => r.name === "ricer");
+                let member = message.mentions.members.first();
+                let preferredName = args[2]
+
+                let existingName = getNameFromMention(args[1])
+                if (existingName != null) {
+                    // replace old name with new one everywhere?
+                } else {
+                    // add to users list
+                }
+
+                member.addRole(role).catch(console.error);
                 break;
             case 'help':
                 // display command list and args
                 break;
-            case 'setScore':
+            case 'setscore':
                 // [user, score] manual score override
                 break;
-            case 'endAuction':
+            case 'endauction':
                 // [shouldUpdateScore]
                 // force auction to end, even if people haven't voted
         //todo: requires boolean to be passed for whether or not scores should be updated 
@@ -380,8 +451,8 @@ client.on('message', msg => {
                         }
                     })
 
-                    let bidsData = fs.readFileSync('./bids.json')
-                    bids = JSON.parse(bidsData)
+                    // let bidsData = fs.readFileSync('./bids.json')
+                    // bids = JSON.parse(bidsData)
 
                     const losePoints = []
                     let winner;
@@ -400,8 +471,8 @@ client.on('message', msg => {
                         }
                     }
 
-                    let scoreboardData = fs.readFileSync('./scoreboard.json')
-                    scoreboard = JSON.parse(scoreboardData)
+                    // let scoreboardData = fs.readFileSync('./scoreboard.json')
+                    // scoreboard = JSON.parse(scoreboardData)
                     for (const name of losePoints) {
                         if (scoreboard[name] == null) {
                             scoreboard[name] = -1
@@ -425,8 +496,8 @@ client.on('message', msg => {
                         } 
                     })
 
-                    let prizesData = fs.readFileSync('./prizes.json')
-                    prizes = JSON.parse(prizesData)
+                    // let prizesData = fs.readFileSync('./prizes.json')
+                    // prizes = JSON.parse(prizesData)
 
                     if (winningPrice != -1) {
                         if (prizes[winner] == null) {
@@ -449,16 +520,17 @@ client.on('message', msg => {
                             msg.channel.send('Error clearing `bids.json`. Check logs for details.')
                         } 
                     })
+
                     msg.channel.send("Auction ended for " + auction.itemName + ".\n"
                     + "The price is $" + auction.price + ".")
                     if (winningPrice == -1) {
-                        msg.channel.send("Y'all are a bunch of dumbfucks. GO AGAIN!")
+                        msg.channel.send("Everyone loses points! GO AGAIN!")
                     } else {
                         msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
                     }
                 }
                 break;
-            case 'addBidder':
+            case 'addbidder':
                 // !rice addBidder username name to keep names json updated
                 // should this just be used as opt-in?
                 // how to update names for existing bidders if desired
