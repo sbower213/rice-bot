@@ -5,6 +5,7 @@ var _ = require('lodash');
 
 const Discord = require('discord.js');
 const { stringify } = require('querystring');
+const { min } = require('lodash');
 const client = new Discord.Client();
 let thotServer;
 let thots;
@@ -53,7 +54,8 @@ const PREFIX = "!rice "
 // listen for when js object changes and only write then
 
 client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`Logged in as ${client.user.tag}!`)
+    let testChannel = client.channels.cache.get(process.env.TEST_CHANNEL_ID)
 
     // set up necessary files
     if (fs.existsSync('./auction.json')) {
@@ -68,25 +70,23 @@ client.on('ready', () => {
                 auctionInProgress: false
             }
             fs.renameSync('./auction.json', './auction.json-' + Date.now())
-            fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-                if (err) {
-                    console.log('error', err);
-                    client.channels.find("name", "ricebot-testing").send('Error writing `auction.json`. Check logs for details.')
-                }
-            })
+            // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
+            //     if (err) {
+            //         console.log('error', err);
+            //         testChannel.send('Error writing `auction.json`. Check logs for details.')
+            //     }
+            // })
+            saveJsonToFile(auction, './auction.json', testChannel)
         }
     } else {
         auction = {
             auctionInProgress: false
         }
+        saveJsonToFile(auction, './auction.json', testChannel)
     }
 
     if (!fs.existsSync('./bids.json') || !auction.inProgress) {
-        fs.writeFile('./bids.json', JSON.stringify({}), function(err, result) {
-            if(err) {
-                console.log('error', err);
-            }
-        })
+        saveJsonToFile({}, './bids.json', testChannel)
     } else {
         let bidsData = fs.readFileSync('./bids.json')
         try {
@@ -97,21 +97,18 @@ client.on('ready', () => {
 
             bids = {}
             fs.renameSync('./bids.json', './bids.json-' + Date.now())
-            fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-                if (err) {
-                    console.log('error', err);
-                    client.channels.find("name", "ricebot-testing").send('Error writing `bids.json`. Check logs for details.')
-                }
-            })
+            // fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
+            //     if (err) {
+            //         console.log('error', err);
+            //         testChannel.send('Error writing `bids.json`. Check logs for details.')
+            //     }
+            // })
+            saveJsonToFile(bids, './bids.json', testChannel)
         }
     }
 
     if(!fs.existsSync('./prizes.json')) {
-        fs.writeFile('./prizes.json', JSON.stringify({}), function(err, result) {
-            if(err) {
-                console.log('error', err);
-            }
-        })
+        saveJsonToFile({}, './prizes.json', testChannel)
     } else {
         prizesData = fs.readFileSync('./prizes.json')
         try {
@@ -121,21 +118,18 @@ client.on('ready', () => {
             console.log("Error parsing prizes.json, initializing with empty json.")
             prizes = {}
             fs.renameSync('./prizes.json', './prizes.json-' + Date.now())
-            fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
-                if (err) {
-                    console.log('error', err);
-                    client.channels.find("name", "ricebot-testing").send('Error writing `prizes.json`. Check logs for details.')
-                }
-            })
+            // fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
+            //     if (err) {
+            //         console.log('error', err);
+            //         testChannel.send('Error writing `prizes.json`. Check logs for details.')
+            //     }
+            // })
+            saveJsonToFile(prizes, './prizes.json', testChannel)
         }
     }
 
     if(!fs.existsSync('./scoreboard.json')) {
-        fs.writeFile('./scoreboard.json', JSON.stringify({}), function(err, result) {
-            if(err) {
-                console.log('error', err);
-            }
-        })
+        saveJsonToFile({}, './scoreboard.json', testChannel)
     } else {
         scoreboardData = fs.readFileSync('./scoreboard.json')
         try {
@@ -145,12 +139,13 @@ client.on('ready', () => {
             console.log("Error parsing scoreboard.json, initializing with empty json.")
             scoreboard = {}
             fs.renameSync('./scoreboard.json', './scoreboard.json-' + Date.now())
-            fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
-                if (err) {
-                    console.log('error', err);
-                    client.channels.find("name", "ricebot-testing").send('Error writing `scoreboard.json`. Check logs for details.')
-                }
-            })
+            // fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
+            //     if (err) {
+            //         console.log('error', err);
+            //         testChannel.send('Error writing `scoreboard.json`. Check logs for details.')
+            //     }
+            // })
+            saveJsonToFile(scoreboard, './scoreboard.json', testChannel)
         }
     }
 
@@ -165,19 +160,16 @@ client.on('ready', () => {
             idToUserMap = {}
             userToIdMap = {}
             fs.renameSync('./users.json', './users.json-' + Date.now())
-            fs.writeFile('./users.json', JSON.stringify(idToUserMap), function(err, result) {
-                if (err) {
-                    console.log('error', err);
-                    client.channels.find("name", "ricebot-testing").send('Error writing `users.json`. Check logs for details.')
-                }
-            })
+            // fs.writeFile('./users.json', JSON.stringify(idToUserMap), function(err, result) {
+            //     if (err) {
+            //         console.log('error', err);
+            //         testChannel.send('Error writing `users.json`. Check logs for details.')
+            //     }
+            // })
+            saveJsonToFile(idToUserMap, './users.json', testChannel)
         }
     } else {
-        fs.writeFile('./users.json', JSON.stringify({}), function(err, result) {
-            if(err) {
-                console.log('error', err);
-            }
-        })
+        saveJsonToFile({}, './users.json', testChannel)
     }
 
     thotServer = client.guilds.cache.get(process.env.SERVER_ID)
@@ -228,6 +220,15 @@ function sortByValue(jsObj){
         sortedArray.push([jsObj[i], i]);
     }
     return sortedArray.sort(([a, b], [c, d]) => c - a);
+}
+
+function saveJsonToFile(object, filename, channel) {
+    fs.writeFile(filename, JSON.stringify(object), function(err, result) {
+        if (err) {
+            console.log('error', err);
+            channel.send('Error writing `' + filename + '`. Check logs for details.')
+        }
+    })
 }
 
 client.on('message', msg => {
@@ -302,12 +303,13 @@ client.on('message', msg => {
                                 'auctioneer': idToUserMap[msg.author.id]
                             }
                             console.log(auction)
-                            fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-                                if (err) {
-                                    console.log('error', err);
-                                    msg.channel.send('Error writing `auction.json`. Check logs for details.')
-                                }
-                            })
+                            // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
+                            //     if (err) {
+                            //         console.log('error', err);
+                            //         msg.channel.send('Error writing `auction.json`. Check logs for details.')
+                            //     }
+                            // })
+                            saveJsonToFile(auction, './auction.json', msg.channel)
                             msg.channel.send("New auction started for " + name)
                         }
                     }
@@ -343,12 +345,13 @@ client.on('message', msg => {
                             const bidder = idToUserMap[msg.author.id]
                             if (bids[bidder] ==  null) {
                                 bids[bidder] = bid;
-                                fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-                                    if (err) {
-                                        console.log('error', err);
-                                        msg.channel.send('Error writing `bids.json`. Check logs for details.')
-                                    }
-                                })
+                                // fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
+                                //     if (err) {
+                                //         console.log('error', err);
+                                //         msg.channel.send('Error writing `bids.json`. Check logs for details.')
+                                //     }
+                                // })
+                                saveJsonToFile(bids, './bids.json', msg.channel)
                                 msg.channel.send(bidder + " bids $" + bid)
                             } else {
                                 msg.channel.send(bidder + " has already bid $" + bids[bidder] + " for this auction.")
@@ -412,23 +415,69 @@ client.on('message', msg => {
                 // assign ricer role and add name to users.json + scoreboard
                 // alert if name already exists or if user is already playing
                 if (args.length < 3) {
-                    msg.channel.send('Error making bid: Invalid input.\n'
+                    msg.channel.send('Error: Invalid input.\n'
                         + 'Usage: `!rice optin <@username> <preferred name>`')
                     break;
                 }
 
-                let role = message.guild.roles.find(r => r.name === "ricer");
-                let member = message.mentions.members.first();
-                let preferredName = args[2]
+                let role = msg.guild.roles.cache.find(r => r.name === "ricer");
+                let member = msg.mentions.members.first();
+                if (member == null) {
+                    msg.channel.send('Error: please tag the user you are updating.\n'
+                    + 'Usage: `!rice optin <@username> <preferred name>`')
+                    break;
+                }
+
+                let preferredName = '';
+                for (let i = 2; i < args.length - 1; i++) {
+                    preferredName += args[i] + " "
+                }
+                preferredName += args[args.length-1]
 
                 let existingName = getNameFromMention(args[1])
                 if (existingName != null) {
-                    // replace old name with new one everywhere?
+                    // user is in users.json, replace old name with new one everywhere
+                    if (auction.auctioneer == existingName) {
+                        auction.auctioneer == preferredName
+                        // save auction.json
+                        saveJsonToFile(auction, './auction.json', msg.channel)
+                    }
+                    if (bids[existingName] != null) {
+                        bids[preferredName] = bids[existingName]
+                        delete bids[existingName]
+                        // save bids.json
+                        saveJsonToFile(bids, './bids.json', msg.channel)
+                    }
+                    if (userToIdMap[existingName] != null) {
+                        userToIdMap[preferredName] = userToIdMap[existingName]
+                        delete userToIdMap[existingName]
+                        idToUserMap = objectFlip(userToIdMap)
+                        // save idtousermap to users.json
+                        saveJsonToFile(idToUserMap, './users.json', msg.channel)
+                    }
+                    if (scoreboard[existingName] != null) {
+                        scoreboard[preferredName] = scoreboard[existingName]
+                        delete scoreboard[existingName]
+                        // save to scoreboard.json
+                        saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
+                    }
+                    if (prizes[existingName] != null) {
+                        prizes[preferredName] = prizes[existingName]
+                        delete prizes[existingName]
+                        // save to prizes.json
+                        saveJsonToFile(prizes, './prizes.json', msg.channel)
+                    }
                 } else {
                     // add to users list
+                    let memberId = member.id
+                    idToUserMap[memberId] = preferredName
+                    userToIdMap = objectFlip(idToUserMap)
+                    // save idtousermap to users.json
+                    saveJsonToFile(idToUserMap, './users.json', msg.channel)
                 }
 
-                member.addRole(role).catch(console.error);
+                //member.addRole(role).catch(console.error);
+                member.roles.add(process.env.RICER_ROLE)
                 break;
             case 'help':
                 // display command list and args
@@ -444,12 +493,13 @@ client.on('message', msg => {
                     msg.channel.send("No auction in progress.")
                 } else {
                     auction.auctionInProgress = false;
-                    fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-                        if(err) {
-                            console.log('error', err);
-                            msg.channel.send('Error writing `auction.json`. Check logs for details.')
-                        }
-                    })
+                    // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
+                    //     if(err) {
+                    //         console.log('error', err);
+                    //         msg.channel.send('Error writing `auction.json`. Check logs for details.')
+                    //     }
+                    // })
+                    saveJsonToFile(auction, './auction.json', msg.channel)
 
                     // let bidsData = fs.readFileSync('./bids.json')
                     // bids = JSON.parse(bidsData)
@@ -489,12 +539,13 @@ client.on('message', msg => {
                         }
                     }
 
-                    fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
-                        if(err) {
-                            console.log('error', err);
-                            msg.channel.send('Error writing `scoreboard.json`. Check logs for details.')
-                        } 
-                    })
+                    // fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
+                    //     if(err) {
+                    //         console.log('error', err);
+                    //         msg.channel.send('Error writing `scoreboard.json`. Check logs for details.')
+                    //     } 
+                    // })
+                    saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
 
                     // let prizesData = fs.readFileSync('./prizes.json')
                     // prizes = JSON.parse(prizesData)
@@ -507,19 +558,21 @@ client.on('message', msg => {
                         }
                     }
 
-                    fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
-                        if(err) {
-                            console.log('error', err);
-                            msg.channel.send('Error writing `prizes.json`. Check logs for details.')
-                        } 
-                    })
+                    // fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
+                    //     if(err) {
+                    //         console.log('error', err);
+                    //         msg.channel.send('Error writing `prizes.json`. Check logs for details.')
+                    //     } 
+                    // })
+                    saveJsonToFile(prizes, './prizes.json', msg.channel)
 
-                    fs.writeFile('./bids.json', JSON.stringify({}), function(err, result) {
-                        if(err) {
-                            console.log('error', err);
-                            msg.channel.send('Error clearing `bids.json`. Check logs for details.')
-                        } 
-                    })
+                    // fs.writeFile('./bids.json', JSON.stringify({}), function(err, result) {
+                    //     if(err) {
+                    //         console.log('error', err);
+                    //         msg.channel.send('Error clearing `bids.json`. Check logs for details.')
+                    //     } 
+                    // })
+                    saveJsonToFile({}, './bids.json', msg.channel)
 
                     msg.channel.send("Auction ended for " + auction.itemName + ".\n"
                     + "The price is $" + auction.price + ".")
