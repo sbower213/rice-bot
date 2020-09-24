@@ -237,6 +237,9 @@ client.on('message', msg => {
         msg.reply('fuck off, ' + idToUserMap[msg.author.id]);
     }
 
+    let role = msg.guild.roles.cache.find(r => r.name === "ricer");
+    let ricerIds = role.members.map(m => m.user.id)
+
     if (msg.content.substring(0, PREFIX.length).toLowerCase() == PREFIX) {
         let args = msg.content.substring(PREFIX.length).split(" ")
         console.log(args)
@@ -363,7 +366,26 @@ client.on('message', msg => {
                 }
                 break;
             case 'bids':
-                // display list of bids + name of current auction item
+                // display list of bids (ascending) + name of current auction item
+                if (auction.auctionInProgress) {
+                    let bidsMessage = 'Bids for ' + auction.auctioneer + '\'s ' + auction.itemName + ':\n'
+                    let sortedBids = sortByValue(bids)
+
+                    for(var i=0; i<sortedBids.length; i++) {
+                        bidsMessage += sortedBids[i][1] + ": " + sortedBids[i][0] + "\n"
+                    }
+
+                    bidsMessage += 'Haven\'t bid yet: '
+                    for (let ricerId of ricerIds) {
+                        let ricer = idToUserMap[ricerId]
+                        if (bids[ricer] == null && auction.auctioneer != ricer) {
+                            bidsMessage += ricer + ' '
+                        }
+                    }
+                    msg.channel.send(bidsMessage)
+                } else {
+                    msg.channel.send('Error: No auction in progress; no bids to show.')
+                }
                 break;
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
@@ -412,17 +434,19 @@ client.on('message', msg => {
                 break;
             case 'ping':
                 // pings opted-in users who haven't voted this round
-                let role = msg.guild.roles.cache.find(r => r.name === "ricer");
-                let ricerIds = role.members.map(m => m.user.id)
-                let pingText = 'Pinging';
-                for (let ricerId of ricerIds) {
-                    let ricerName = idToUserMap[ricerId]
-                    if (auction.auctioneer != ricerName && bids[ricerName] == null) {
-                        pingText += ' <@' + ricerId + '>'
+                if (auction.auctionInProgress) {
+                    let pingText = 'Pinging';
+                    for (let ricerId of ricerIds) {
+                        let ricerName = idToUserMap[ricerId]
+                        if (auction.auctioneer != ricerName && bids[ricerName] == null) {
+                            pingText += ' <@' + ricerId + '>'
+                        }
                     }
+                    pingText += ', come get y\'all\'s rice!'
+                    msg.channel.send(pingText)
+                } else {
+                    msg.channel.send('Error: No auction in progress, no one to ping.')
                 }
-                pingText += ', come get y\'all\'s rice!'
-                msg.channel.send(pingText)
                 break;
             case 'optout':
                 // user will no longer receive notifications from /ping and will be ignored
