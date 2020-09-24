@@ -266,8 +266,8 @@ client.on('message', msg => {
             /* actual functionality */
             case 'scoreboard':
                 // display scoreboard, sorted from most points to least
-                let scoreboardData = fs.readFileSync('./scoreboard.json')
-                scoreboard = JSON.parse(scoreboardData)
+                // let scoreboardData = fs.readFileSync('./scoreboard.json')
+                // scoreboard = JSON.parse(scoreboardData)
                 const sortedScoreboard = sortByValue(scoreboard)
 
                 let scoreMessage = '';
@@ -537,6 +537,38 @@ client.on('message', msg => {
                 break;
             case 'setscore':
                 // [user, score] manual score override
+                if (args.length < 3) {
+                    msg.channel.send('Error: not enough arguments passed.\n'
+                        + 'Usage: `!rice setscore <@username or nickname> <score>`')
+                    break;
+                }
+
+                let targetName = getNameFromMention(args[1])
+                if (targetName == null) {
+                    targetName = '';
+                    for (let i=1; i < args.length - 1; i++) {
+                        targetName += args[i] + ' '
+                    }
+                    targetName = targetName.trim()
+                }
+
+                let testId = userToIdMap[targetName]
+                if (testId == null) {
+                    msg.channel.send('Error: specified user not found.')
+                    break;
+                }
+
+                let score = args[args.length - 1]
+                if (isNaN(score)) {
+                    msg.channel.send('Error: Final argument needs to be a number.')
+                    break;
+                }
+
+                let oldScore = scoreboard[targetName]
+                scoreboard[targetName] = score
+                saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
+                
+                msg.channel.send(targetName + '\'s score changed from ' + oldScore + ' to ' + score + '.')
                 break;
             case 'cancel':
                 if (!auction.auctionInProgress) {
@@ -661,7 +693,7 @@ client.on('message', msg => {
                     '`!rice prizes <optional: @username or nickname>` -- View a player\'s prizes. Omitting a username will show your own prizes.\n' +
                     '`!rice ping` -- (todo) Ping all ricers who have not voted in the current auction.\n' +
                     '`!rice optin <@username> <nickname>` -- Add a user to the game. You may also use this to update your display name.\n' +
-                    '`!rice optout <@username>` -- (todo) Remove a user from the game. Their score and prizes will remain, but they will not be alerted by `ping` commands.\n' +
+                    '`!rice optout <@username>` -- Remove a user from the game. Their score and prizes will remain, but they will not be alerted by `ping` commands.\n' +
                     '`!rice setscore <@username or nickname> <score>` -- (todo) Manually set a player\'s score. Use responsibly.\n' +
                     '`!rice help` -- Display the help menu.'
                 )
