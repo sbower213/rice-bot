@@ -271,8 +271,23 @@ client.on('message', msg => {
                 const sortedScoreboard = sortByValue(scoreboard)
 
                 let scoreMessage = '';
-                for(var i=0; i<sortedScoreboard.length; i++) {
-                    scoreMessage += sortedScoreboard[i][1] + ": " + sortedScoreboard[i][0] + "\n"
+                if (args[1] == 'all') {
+                    for(var i=0; i<sortedScoreboard.length; i++) {
+                        let scoreboardName = sortedScoreboard[i][1]
+                        let scoreboardScore = sortedScoreboard[i][0]
+                        scoreMessage += scoreboardName + ": " + scoreboardScore + "\n"
+                    }
+                } else {
+                    for(var i=0; i<sortedScoreboard.length; i++) {
+                        let scoreboardName = sortedScoreboard[i][1]
+                        let scoreboardScore = sortedScoreboard[i][0]
+                        if (ricerIds.includes(userToIdMap[scoreboardName])) {
+                            scoreMessage += scoreboardName + ": " + scoreboardScore + "\n"
+                        }
+                    }
+                }
+                if (scoreMessage == '') {
+                    msg.channel.send('No scores to report.')
                 }
                 msg.channel.send(scoreMessage)
                 break;
@@ -684,7 +699,7 @@ client.on('message', msg => {
             default:
                 // display command list and args
                 msg.channel.send('Possible commands:\n' +
-                    '`!rice scoreboard` -- Display the current scores.\n' + 
+                    '`!rice scoreboard` -- Display the scores of current players. Run `!rice scoreboard all` to get scores of all players.\n' + 
                     '`!rice auction <price in dollars> <item name>` -- Start an auction for an item.\n' +
                     '`!rice bid <bid amount>` -- Bid for the current item on auction.\n' +
                     '`!rice bids` -- (todo) Display list of bids for the current auction. \n' +
