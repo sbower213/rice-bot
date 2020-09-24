@@ -50,9 +50,6 @@ function objectFlip(obj) {
 
 const PREFIX = "!rice "
 
-// todo: instead of having read/writes everywhere
-// listen for when js object changes and only write then
-
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`)
     let testChannel = client.channels.cache.get(process.env.TEST_CHANNEL_ID)
@@ -237,6 +234,76 @@ client.on('message', msg => {
         msg.reply('fuck off, ' + idToUserMap[msg.author.id]);
     }
 
+    function endAuction() {
+        // force auction to end, even if people haven't voted
+        if (!auction.auctionInProgress) {
+            msg.channel.send("No auction in progress.")
+        } else {
+            auction.auctionInProgress = false;
+            saveJsonToFile(auction, './auction.json', msg.channel)
+
+            const losePoints = []
+            let winner;
+            let winningPrice = -1;
+
+            for (const [key, value] of Object.entries(bids)) {
+                // if they bid above the price, lose points
+                if (value > auction.price) {
+                    losePoints.push(key)
+                } else {
+                    if (value > winningPrice) {
+                        // otherwise, pick the highest bid under the value
+                        winner = key
+                        winningPrice = value
+                    }
+                }
+            }
+
+            // let scoreboardData = fs.readFileSync('./scoreboard.json')
+            // scoreboard = JSON.parse(scoreboardData)
+            for (const name of losePoints) {
+                if (scoreboard[name] == null) {
+                    scoreboard[name] = -1
+                } else {
+                    scoreboard[name] = scoreboard[name] - 1
+                }
+            }
+
+            if (winningPrice != -1) {
+                if(scoreboard[winner] == null) {
+                    scoreboard[winner] = 0
+                }
+                if (winningPrice == auction.price) {
+                    scoreboard[winner] += 2
+                } else {
+                    scoreboard[winner] += 1
+                }
+            }
+            saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
+
+            if (winningPrice != -1) {
+                if (prizes[winner] == null) {
+                    prizes[winner] = [auction.itemName]
+                } else {
+                    prizes[winner].push(auction.itemName)
+                }
+            }
+            saveJsonToFile(prizes, './prizes.json', msg.channel)
+
+            saveJsonToFile({}, './bids.json', msg.channel)
+
+            msg.channel.send("Auction ended for " + auction.itemName + ".\n"
+            + "The price is $" + auction.price + ".")
+            if (winningPrice == -1) {
+                msg.channel.send("Everyone loses points! GO AGAIN!")
+            } else if (winningPrice == auction.price) {
+                msg.channel.send('Double points for '+ winner + '!!! Enjoy your new ' + auction.itemName + '!')
+            } else {
+                msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
+            }
+        }
+    }
+
     let role = msg.guild.roles.cache.find(r => r.name === "ricer");
     let ricerIds = role.members.map(m => m.user.id)
 
@@ -340,8 +407,8 @@ client.on('message', msg => {
                 // [number] - self-explanatory. once the last person calls bid the bot will
                 // automatically end the round, ping the winner, add the item to the winner's
                 // prize inventory, and update the scoreboard. the command should also
-        // todo: prevent duplicate bid amounts in a given round
-        // todo: if this is the last user left, also end the auction + update scoreboard/channel desc
+                // prevent duplicate bids. if this is the last user left, also end
+                // the auction + update scoreboard/channel description.
                 if (auction.auctionInProgress) {
                     if (args.length < 2) {
                         msg.channel.send('Error making bid: Invalid input.\n'
@@ -360,6 +427,15 @@ client.on('message', msg => {
                         } else {
                             // let bidsData = fs.readFileSync('./bids.json')
                             // bids = JSON.parse(bidsData)
+
+                            // catch duplicate bid amounts
+                            let bidValues = Object.values(bids)
+                            let dupeBidIndex = bidValues.indexOf(bid)
+                            if (dupeBidIndex >= 0) {
+                                msg.channel.send('Error: ' + Object.keys(bids)[dupeBidIndex] + ' already bid $' + bid + '. No doubles!')
+                                break;
+                            }
+
                             const bidder = idToUserMap[msg.author.id]
                             if (bids[bidder] == null) {
                                 bids[bidder] = bid;
@@ -373,6 +449,13 @@ client.on('message', msg => {
                                 msg.channel.send(bidder + " bids $" + bid)
                             } else {
                                 msg.channel.send(bidder + " has already bid $" + bids[bidder] + " for this auction.")
+                                break;
+                            }
+
+                            // if this is the last bid, end the auction
+                            // minus 1 for auctioneer, minus 1 for current bid
+                            if (bidValues.length == ricerIds.length - 2) {
+                                endAuction()
                             }
                         }
                     }
@@ -506,45 +589,48 @@ client.on('message', msg => {
                 }
 
                 let existingName = getNameFromMention(args[1])
-                if (existingName != null) {
-                    // user is in users.json, replace old name with new one everywhere
-                    if (auction.auctioneer == existingName) {
-                        auction.auctioneer == nickname
-                        // save auction.json
-                        saveJsonToFile(auction, './auction.json', msg.channel)
-                    }
-                    if (bids[existingName] != null) {
-                        bids[nickname] = bids[existingName]
-                        delete bids[existingName]
-                        // save bids.json
-                        saveJsonToFile(bids, './bids.json', msg.channel)
-                    }
-                    if (userToIdMap[existingName] != null) {
-                        userToIdMap[nickname] = userToIdMap[existingName]
-                        delete userToIdMap[existingName]
-                        idToUserMap = objectFlip(userToIdMap)
+
+                if (existingName != nickname) {
+                    if (existingName != null) {
+                        // user is in users.json, replace old name with new one everywhere
+                        if (auction.auctioneer == existingName) {
+                            auction.auctioneer == nickname
+                            // save auction.json
+                            saveJsonToFile(auction, './auction.json', msg.channel)
+                        }
+                        if (bids[existingName] != null) {
+                            bids[nickname] = bids[existingName]
+                            delete bids[existingName]
+                            // save bids.json
+                            saveJsonToFile(bids, './bids.json', msg.channel)
+                        }
+                        if (userToIdMap[existingName] != null) {
+                            userToIdMap[nickname] = userToIdMap[existingName]
+                            delete userToIdMap[existingName]
+                            idToUserMap = objectFlip(userToIdMap)
+                            // save idtousermap to users.json
+                            saveJsonToFile(idToUserMap, './users.json', msg.channel)
+                        }
+                        if (scoreboard[existingName] != null) {
+                            scoreboard[nickname] = scoreboard[existingName]
+                            delete scoreboard[existingName]
+                            // save to scoreboard.json
+                            saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
+                        }
+                        if (prizes[existingName] != null) {
+                            prizes[nickname] = prizes[existingName]
+                            delete prizes[existingName]
+                            // save to prizes.json
+                            saveJsonToFile(prizes, './prizes.json', msg.channel)
+                        }
+                    } else {
+                        // add to users list
+                        let memberId = member.id
+                        idToUserMap[memberId] = nickname
+                        userToIdMap = objectFlip(idToUserMap)
                         // save idtousermap to users.json
                         saveJsonToFile(idToUserMap, './users.json', msg.channel)
                     }
-                    if (scoreboard[existingName] != null) {
-                        scoreboard[nickname] = scoreboard[existingName]
-                        delete scoreboard[existingName]
-                        // save to scoreboard.json
-                        saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
-                    }
-                    if (prizes[existingName] != null) {
-                        prizes[nickname] = prizes[existingName]
-                        delete prizes[existingName]
-                        // save to prizes.json
-                        saveJsonToFile(prizes, './prizes.json', msg.channel)
-                    }
-                } else {
-                    // add to users list
-                    let memberId = member.id
-                    idToUserMap[memberId] = nickname
-                    userToIdMap = objectFlip(idToUserMap)
-                    // save idtousermap to users.json
-                    saveJsonToFile(idToUserMap, './users.json', msg.channel)
                 }
 
                 member.roles.add(process.env.RICER_ROLE)
@@ -597,103 +683,7 @@ client.on('message', msg => {
             case 'end':
             case 'auctionend':
             case 'endauction':
-                // force auction to end, even if people haven't voted
-                if (!auction.auctionInProgress) {
-                    msg.channel.send("No auction in progress.")
-                } else {
-                    auction.auctionInProgress = false;
-                    // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-                    //     if(err) {
-                    //         console.log('error', err);
-                    //         msg.channel.send('Error writing `auction.json`. Check logs for details.')
-                    //     }
-                    // })
-                    saveJsonToFile(auction, './auction.json', msg.channel)
-
-
-                    // let bidsData = fs.readFileSync('./bids.json')
-                    // bids = JSON.parse(bidsData)
-
-                    const losePoints = []
-                    let winner;
-                    let winningPrice = -1;
-
-                    for (const [key, value] of Object.entries(bids)) {
-                        // if they bid above the price, lose points
-                        if (value > auction.price) {
-                            losePoints.push(key)
-                        } else {
-                            if (value > winningPrice) {
-                                // otherwise, pick the highest bid under the value
-                                winner = key
-                                winningPrice = value
-                            }
-                        }
-                    }
-
-                    // let scoreboardData = fs.readFileSync('./scoreboard.json')
-                    // scoreboard = JSON.parse(scoreboardData)
-                    for (const name of losePoints) {
-                        if (scoreboard[name] == null) {
-                            scoreboard[name] = -1
-                        } else {
-                            scoreboard[name] = scoreboard[name] - 1
-                        }
-                    }
-
-                    if (winningPrice != -1) {
-                        if (winningPrice == auction.price) {
-                            scoreboard[winner] += 2
-                        } else {
-                            scoreboard[winner] += 1
-                        }
-                    }
-
-                    // fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
-                    //     if(err) {
-                    //         console.log('error', err);
-                    //         msg.channel.send('Error writing `scoreboard.json`. Check logs for details.')
-                    //     } 
-                    // })
-                    saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
-
-                    // let prizesData = fs.readFileSync('./prizes.json')
-                    // prizes = JSON.parse(prizesData)
-
-                    if (winningPrice != -1) {
-                        if (prizes[winner] == null) {
-                            prizes[winner] = [auction.itemName]
-                        } else {
-                            prizes[winner].push(auction.itemName)
-                        }
-                    }
-
-                    // fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
-                    //     if(err) {
-                    //         console.log('error', err);
-                    //         msg.channel.send('Error writing `prizes.json`. Check logs for details.')
-                    //     } 
-                    // })
-                    saveJsonToFile(prizes, './prizes.json', msg.channel)
-
-                    // fs.writeFile('./bids.json', JSON.stringify({}), function(err, result) {
-                    //     if(err) {
-                    //         console.log('error', err);
-                    //         msg.channel.send('Error clearing `bids.json`. Check logs for details.')
-                    //     } 
-                    // })
-                    saveJsonToFile({}, './bids.json', msg.channel)
-
-                    msg.channel.send("Auction ended for " + auction.itemName + ".\n"
-                    + "The price is $" + auction.price + ".")
-                    if (winningPrice == -1) {
-                        msg.channel.send("Everyone loses points! GO AGAIN!")
-                    } else if (winningPrice == auction.price) {
-                        msg.channel.send('Double points for '+ winner + '!!! Enjoy your new ' + auction.itemName + '!')
-                    } else {
-                        msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
-                    }
-                }
+                endAuction()
                 break;
             case 'help':
             default:
@@ -702,14 +692,14 @@ client.on('message', msg => {
                     '`!rice scoreboard` -- Display the scores of current players. Run `!rice scoreboard all` to get scores of all players.\n' + 
                     '`!rice auction <price in dollars> <item name>` -- Start an auction for an item.\n' +
                     '`!rice bid <bid amount>` -- Bid for the current item on auction.\n' +
-                    '`!rice bids` -- (todo) Display list of bids for the current auction. \n' +
+                    '`!rice bids` -- Display list of bids for the current auction. \n' +
                     '`!rice end` -- End the current auction, and award points to the winner. Interchangeable with `!rice endAuction` and `!rice auctionEnd`.\n' +
                     '`!rice cancel` -- Cancel the current auction without awarding points.\n' +
                     '`!rice prizes <optional: @username or nickname>` -- View a player\'s prizes. Omitting a username will show your own prizes.\n' +
-                    '`!rice ping` -- (todo) Ping all ricers who have not voted in the current auction.\n' +
+                    '`!rice ping` -- Ping all ricers who have not voted in the current auction.\n' +
                     '`!rice optin <@username> <nickname>` -- Add a user to the game. You may also use this to update your display name.\n' +
                     '`!rice optout <@username>` -- Remove a user from the game. Their score and prizes will remain, but they will not be alerted by `ping` commands.\n' +
-                    '`!rice setscore <@username or nickname> <score>` -- (todo) Manually set a player\'s score. Use responsibly.\n' +
+                    '`!rice setscore <@username or nickname> <score>` -- Manually set a player\'s score. Use responsibly.\n' +
                     '`!rice help` -- Display the help menu.'
                 )
         }
