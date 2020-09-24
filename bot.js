@@ -310,7 +310,7 @@ client.on('message', msg => {
                             //     }
                             // })
                             saveJsonToFile(auction, './auction.json', msg.channel)
-                            msg.channel.send("New auction started for " + name)
+                            msg.channel.send(auction.auctioneer + " started a new auction for " + name)
                         }
                     }
                 } else {
@@ -321,9 +321,9 @@ client.on('message', msg => {
             case 'bid':
                 // [number] - self-explanatory. once the last person calls bid the bot will
                 // automatically end the round, ping the winner, add the item to the winner's
-                // prize inventory, and update the scoreboard. the command should also prevent
-                // duplicate bid amounts in a given round, as well as multiple bids from the same user
-                // if this is the last user left, also end the auction + update scoreboard/channel desc
+                // prize inventory, and update the scoreboard. the command should also
+        // todo: prevent duplicate bid amounts in a given round
+        // todo: if this is the last user left, also end the auction + update scoreboard/channel desc
                 if (auction.auctionInProgress) {
                     if (args.length < 2) {
                         msg.channel.send('Error making bid: Invalid input.\n'
@@ -343,7 +343,7 @@ client.on('message', msg => {
                             // let bidsData = fs.readFileSync('./bids.json')
                             // bids = JSON.parse(bidsData)
                             const bidder = idToUserMap[msg.author.id]
-                            if (bids[bidder] ==  null) {
+                            if (bids[bidder] == null) {
                                 bids[bidder] = bid;
                                 // fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
                                 //     if (err) {
@@ -361,6 +361,9 @@ client.on('message', msg => {
                 } else {
                     msg.channel.send('Error making bid: No auction in progress.')
                 }
+                break;
+            case 'bids':
+                // display list of bids + name of current auction item
                 break;
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
@@ -381,7 +384,7 @@ client.on('message', msg => {
                     break;
                 }
 
-                name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+                // name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 
                 // prizesData = fs.readFileSync('./prizes.json')
                 // try {
@@ -405,6 +408,17 @@ client.on('message', msg => {
                 break;
             case 'ping':
                 // pings opted-in users who haven't voted this round
+                let role = msg.guild.roles.cache.find(r => r.name === "ricer");
+                let ricerIds = role.members.map(m => m.user.id)
+                let pingText = 'Pinging';
+                for (let ricerId of ricerIds) {
+                    let ricerName = idToUserMap[ricerId]
+                    if (auction.auctioneer != ricerName && bids[ricerName] == null) {
+                        pingText += ' <@' + ricerId + '>'
+                    }
+                }
+                pingText += ', come get y\'all\'s rice!'
+                msg.channel.send(pingText)
                 break;
             case 'optout':
                 // user will no longer receive notifications from /ping and will be ignored
@@ -416,53 +430,58 @@ client.on('message', msg => {
                 // alert if name already exists or if user is already playing
                 if (args.length < 3) {
                     msg.channel.send('Error: Invalid input.\n'
-                        + 'Usage: `!rice optin <@username> <preferred name>`')
+                        + 'Usage: `!rice optin <@username> <nickname>`')
                     break;
                 }
 
-                let role = msg.guild.roles.cache.find(r => r.name === "ricer");
                 let member = msg.mentions.members.first();
                 if (member == null) {
-                    msg.channel.send('Error: please tag the user you are updating.\n'
-                    + 'Usage: `!rice optin <@username> <preferred name>`')
+                    msg.channel.send('Error: Please tag the user you are updating.\n'
+                    + 'Usage: `!rice optin <@username> <nickname>`')
                     break;
                 }
 
-                let preferredName = '';
+                let nickname = '';
                 for (let i = 2; i < args.length - 1; i++) {
-                    preferredName += args[i] + " "
+                    nickname += args[i] + " "
                 }
-                preferredName += args[args.length-1]
+                nickname += args[args.length-1]
+                nickname = nickname.trim()
+
+                if (userToIdMap[nickname] != null) {
+                    msg.channel.send('Error: Nickname already in use.')
+                    break;
+                }
 
                 let existingName = getNameFromMention(args[1])
                 if (existingName != null) {
                     // user is in users.json, replace old name with new one everywhere
                     if (auction.auctioneer == existingName) {
-                        auction.auctioneer == preferredName
+                        auction.auctioneer == nickname
                         // save auction.json
                         saveJsonToFile(auction, './auction.json', msg.channel)
                     }
                     if (bids[existingName] != null) {
-                        bids[preferredName] = bids[existingName]
+                        bids[nickname] = bids[existingName]
                         delete bids[existingName]
                         // save bids.json
                         saveJsonToFile(bids, './bids.json', msg.channel)
                     }
                     if (userToIdMap[existingName] != null) {
-                        userToIdMap[preferredName] = userToIdMap[existingName]
+                        userToIdMap[nickname] = userToIdMap[existingName]
                         delete userToIdMap[existingName]
                         idToUserMap = objectFlip(userToIdMap)
                         // save idtousermap to users.json
                         saveJsonToFile(idToUserMap, './users.json', msg.channel)
                     }
                     if (scoreboard[existingName] != null) {
-                        scoreboard[preferredName] = scoreboard[existingName]
+                        scoreboard[nickname] = scoreboard[existingName]
                         delete scoreboard[existingName]
                         // save to scoreboard.json
                         saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
                     }
                     if (prizes[existingName] != null) {
-                        prizes[preferredName] = prizes[existingName]
+                        prizes[nickname] = prizes[existingName]
                         delete prizes[existingName]
                         // save to prizes.json
                         saveJsonToFile(prizes, './prizes.json', msg.channel)
@@ -470,25 +489,31 @@ client.on('message', msg => {
                 } else {
                     // add to users list
                     let memberId = member.id
-                    idToUserMap[memberId] = preferredName
+                    idToUserMap[memberId] = nickname
                     userToIdMap = objectFlip(idToUserMap)
                     // save idtousermap to users.json
                     saveJsonToFile(idToUserMap, './users.json', msg.channel)
                 }
 
-                //member.addRole(role).catch(console.error);
                 member.roles.add(process.env.RICER_ROLE)
-                break;
-            case 'help':
-                // display command list and args
+                msg.channel.send(nickname + ", come on down! You're the next contestant on... The Price is Rice!")
                 break;
             case 'setscore':
                 // [user, score] manual score override
                 break;
+            case 'cancel':
+                if (!auction.auctionInProgress) {
+                    msg.channel.send("No auction in progress.")
+                } else {
+                    auction.auctionInProgress = false;
+                    saveJsonToFile(auction, './auction.json', msg.channel)
+                    msg.channel.send("Auction for " + auction.itemName + " has been cancelled.")
+                }
+                break;
+            case 'end':
+            case 'auctionend':
             case 'endauction':
-                // [shouldUpdateScore]
                 // force auction to end, even if people haven't voted
-        //todo: requires boolean to be passed for whether or not scores should be updated 
                 if (!auction.auctionInProgress) {
                     msg.channel.send("No auction in progress.")
                 } else {
@@ -500,6 +525,7 @@ client.on('message', msg => {
                     //     }
                     // })
                     saveJsonToFile(auction, './auction.json', msg.channel)
+
 
                     // let bidsData = fs.readFileSync('./bids.json')
                     // bids = JSON.parse(bidsData)
@@ -578,16 +604,30 @@ client.on('message', msg => {
                     + "The price is $" + auction.price + ".")
                     if (winningPrice == -1) {
                         msg.channel.send("Everyone loses points! GO AGAIN!")
+                    } else if (winningPrice == auction.price) {
+                        msg.channel.send('Double points for '+ winner + '!!! Enjoy your new ' + auction.itemName + '!')
                     } else {
                         msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
                     }
                 }
                 break;
-            case 'addbidder':
-                // !rice addBidder username name to keep names json updated
-                // should this just be used as opt-in?
-                // how to update names for existing bidders if desired
-                break;
+            case 'help':
+            default:
+                // display command list and args
+                msg.channel.send('Possible commands:\n' +
+                    '`!rice scoreboard` -- Display the current scores.\n' + 
+                    '`!rice auction <price in dollars> <item name>` -- Start an auction for an item.\n' +
+                    '`!rice bid <bid amount>` -- Bid for the current item on auction.\n' +
+                    '`!rice bids` -- (todo) Display list of bids for the current auction. \n' +
+                    '`!rice end` -- End the current auction, and award points to the winner. Interchangeable with `!rice endAuction` and `!rice auctionEnd`.\n' +
+                    '`!rice cancel` -- Cancel the current auction without awarding points.\n' +
+                    '`!rice prizes <optional: @username or nickname>` -- View a player\'s prizes. Omitting a username will show your own prizes.\n' +
+                    '`!rice ping` -- (todo) Ping all ricers who have not voted in the current auction.\n' +
+                    '`!rice optin <@username> <nickname>` -- Add a user to the game. You may also use this to update your display name.\n' +
+                    '`!rice optout <@username>` -- (todo) Remove a user from the game. Their score and prizes will remain, but they will not be alerted by `ping` commands.\n' +
+                    '`!rice setscore <@username or nickname> <score>` -- (todo) Manually set a player\'s score. Use responsibly.\n' +
+                    '`!rice help` -- Display the help menu.'
+                )
         }
     }
   });
