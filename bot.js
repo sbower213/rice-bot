@@ -185,6 +185,51 @@ function saveJsonToFile(object, filename, channel) {
     })
 }
 
+function updateName(member, existingName, nickname, msg) {
+    if (existingName != nickname) {
+        if (existingName != null) {
+            // user is in users.json, replace old name with new one everywhere
+            if (auction.auctioneer == existingName) {
+                auction.auctioneer == nickname
+                // save auction.json
+                saveJsonToFile(auction, './auction.json', msg.channel)
+            }
+            if (bids[existingName] != null) {
+                bids[nickname] = bids[existingName]
+                delete bids[existingName]
+                // save bids.json
+                saveJsonToFile(bids, './bids.json', msg.channel)
+            }
+            if (userToIdMap[existingName] != null) {
+                userToIdMap[nickname] = userToIdMap[existingName]
+                delete userToIdMap[existingName]
+                idToUserMap = objectFlip(userToIdMap)
+                // save idtousermap to users.json
+                saveJsonToFile(idToUserMap, './users.json', msg.channel)
+            }
+            if (scoreboard[existingName] != null) {
+                scoreboard[nickname] = scoreboard[existingName]
+                delete scoreboard[existingName]
+                // save to scoreboard.json
+                saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
+            }
+            if (prizes[existingName] != null) {
+                prizes[nickname] = prizes[existingName]
+                delete prizes[existingName]
+                // save to prizes.json
+                saveJsonToFile(prizes, './prizes.json', msg.channel)
+            }
+        } else {
+            // add to users list
+            let memberId = member.id
+            idToUserMap[memberId] = nickname
+            userToIdMap = objectFlip(idToUserMap)
+            // save idtousermap to users.json
+            saveJsonToFile(idToUserMap, './users.json', msg.channel)
+        }
+    }
+}
+
 client.on('message', msg => {
     if (msg.content.toLowerCase() === 'ping') {
         console.log(msg.author.id)
@@ -281,6 +326,9 @@ client.on('message', msg => {
                 break;
 
             /* actual functionality */
+            case 'points':
+            case 'score':
+            case 'scores':
             case 'scoreboard':
                 // display scoreboard, sorted from most points to least
                 const sortedScoreboard = sortByValue(scoreboard)
@@ -418,6 +466,7 @@ client.on('message', msg => {
                     msg.channel.send('Error: No auction in progress; no bids to show.')
                 }
                 break;
+            case 'prize':
             case 'prizes':
                 // [(optional) user] - list of prizes a user has won.
                 // can pass either name or tag thanks to our handy id-name jsons
@@ -469,6 +518,38 @@ client.on('message', msg => {
                     msg.channel.send('Error: No auction in progress, no one to ping.')
                 }
                 break;
+            case 'setname':
+                // update name in users.json + scoreboard
+                // alert if name already exists
+                if (args.length < 3) {
+                    msg.channel.send('Error: Invalid input.\n'
+                        + 'Usage: `!rice setname <@username> <nickname>`')
+                    break;
+                }
+
+                let member = msg.mentions.members.first();
+                if (member == null) {
+                    msg.channel.send('Error: Please tag the user you are updating.\n'
+                    + 'Usage: `!rice setname <@username> <nickname>`')
+                    break;
+                }
+
+                let nickname = '';
+                for (let i = 2; i < args.length - 1; i++) {
+                    nickname += args[i] + " "
+                }
+                nickname += args[args.length-1]
+                nickname = nickname.trim()
+
+                if (userToIdMap[nickname] != null && userToIdMap[nickname] != member.id) {
+                    msg.channel.send('Error: Nickname already in use.')
+                    break;
+                }
+
+                let existingName = getNameFromMention(args[1])
+                updateName(member, existingName, nickname, msg)
+                msg.channel.send(existingName + " shall henceforth be known as " + nickname)
+                break;
             case 'optout':
                 // user will no longer receive notifications from /ping and will be ignored
                 // from how /bid determines if everyone voted.
@@ -492,72 +573,35 @@ client.on('message', msg => {
                     break;
                 }
 
-                let member = msg.mentions.members.first();
-                if (member == null) {
+                let optInMember = msg.mentions.members.first();
+                if (optInMember == null) {
                     msg.channel.send('Error: Please tag the user you are updating.\n'
                     + 'Usage: `!rice optin <@username> <nickname>`')
                     break;
                 }
-
-                let nickname = '';
-                for (let i = 2; i < args.length - 1; i++) {
-                    nickname += args[i] + " "
+                if (optInMember.roles.cache.has(process.env.RICER_ROLE)) {
+                    msg.channel.send(idToUserMap[optInMember.id] + ' is already playing!')
+                    break
                 }
-                nickname += args[args.length-1]
-                nickname = nickname.trim()
 
-                if (userToIdMap[nickname] != null && userToIdMap[nickname] != member.id) {
+                let optInNickname = '';
+                for (let i = 2; i < args.length - 1; i++) {
+                    optInNickname += args[i] + " "
+                }
+                optInNickname += args[args.length-1]
+                optInNickname = optInNickname.trim()
+
+                if (userToIdMap[optInNickname] != null && userToIdMap[optInNickname] != optInMember.id) {
                     msg.channel.send('Error: Nickname already in use.')
                     break;
                 }
 
-                let existingName = getNameFromMention(args[1])
+                let optInExistingName = getNameFromMention(args[1])
 
-                if (existingName != nickname) {
-                    if (existingName != null) {
-                        // user is in users.json, replace old name with new one everywhere
-                        if (auction.auctioneer == existingName) {
-                            auction.auctioneer == nickname
-                            // save auction.json
-                            saveJsonToFile(auction, './auction.json', msg.channel)
-                        }
-                        if (bids[existingName] != null) {
-                            bids[nickname] = bids[existingName]
-                            delete bids[existingName]
-                            // save bids.json
-                            saveJsonToFile(bids, './bids.json', msg.channel)
-                        }
-                        if (userToIdMap[existingName] != null) {
-                            userToIdMap[nickname] = userToIdMap[existingName]
-                            delete userToIdMap[existingName]
-                            idToUserMap = objectFlip(userToIdMap)
-                            // save idtousermap to users.json
-                            saveJsonToFile(idToUserMap, './users.json', msg.channel)
-                        }
-                        if (scoreboard[existingName] != null) {
-                            scoreboard[nickname] = scoreboard[existingName]
-                            delete scoreboard[existingName]
-                            // save to scoreboard.json
-                            saveJsonToFile(scoreboard, './scoreboard.json', msg.channel)
-                        }
-                        if (prizes[existingName] != null) {
-                            prizes[nickname] = prizes[existingName]
-                            delete prizes[existingName]
-                            // save to prizes.json
-                            saveJsonToFile(prizes, './prizes.json', msg.channel)
-                        }
-                    } else {
-                        // add to users list
-                        let memberId = member.id
-                        idToUserMap[memberId] = nickname
-                        userToIdMap = objectFlip(idToUserMap)
-                        // save idtousermap to users.json
-                        saveJsonToFile(idToUserMap, './users.json', msg.channel)
-                    }
-                }
+                updateName(optInMember, optInExistingName, optInNickname, msg)
 
-                member.roles.add(process.env.RICER_ROLE)
-                msg.channel.send(nickname + ", come on down! You're the next contestant on... The Price is Rice!")
+                optInMember.roles.add(process.env.RICER_ROLE)
+                msg.channel.send(optInNickname + ", come on down! You're the next contestant on... The Price is Rice!")
                 break;
             case 'setscore':
                 // [user, score] manual score override
@@ -600,6 +644,8 @@ client.on('message', msg => {
                 } else {
                     auction.auctionInProgress = false;
                     saveJsonToFile(auction, './auction.json', msg.channel)
+                    bids = {}
+                    saveJsonToFile(bids, './bids.json', msg.channel)
                     msg.channel.send("Auction for " + auction.itemName + " has been cancelled.")
                 }
                 break;
@@ -620,8 +666,9 @@ client.on('message', msg => {
                     '`!rice cancel` -- Cancel the current auction without awarding points.\n' +
                     '`!rice prizes <optional: @username or nickname>` -- View a player\'s prizes. Omitting a username will show your own prizes.\n' +
                     '`!rice ping` -- Ping all ricers who have not voted in the current auction.\n' +
-                    '`!rice optin <@username> <nickname>` -- Add a user to the game. You may also use this to update your display name.\n' +
+                    '`!rice optin <@username> <nickname>` -- Add a user to the game. You can also use this to update your display name.\n' +
                     '`!rice optout <@username>` -- Remove a user from the game. Their score and prizes will remain, but they will not be alerted by `ping` commands.\n' +
+                    '`!rice setname <@username> <nickname>` -- Set a user\'s nickname. They do not have to currently be playing.\n' +
                     '`!rice setscore <@username or nickname> <score>` -- Manually set a player\'s score. Use responsibly.\n' +
                     '`!rice help` -- Display the help menu.'
                 )
