@@ -1,11 +1,9 @@
 // Run dotenv
 require('dotenv').config();
 const fs = require('fs')
-var _ = require('lodash');
 
 const Discord = require('discord.js');
 const { stringify } = require('querystring');
-const { min } = require('lodash');
 const client = new Discord.Client();
 let thotServer;
 let thots;
@@ -24,17 +22,8 @@ let thots;
 let auction = {
     inProgress: false
 }
-
 let bids = {}
-
 let prizes = {}
-
-// may need a method to update this usermap if the server gets more members
-// use file read/write?
-// probably do that for scoreboard as well
-// let idToUserMapData = fs.readFileSync('users.json')
-// let idToUserMap = JSON.parse(idToUserMapData)
-
 let idToUserMap = {};
 let userToIdMap = {};
 
@@ -45,8 +34,6 @@ function objectFlip(obj) {
     });
     return ret;
 }
-
-//let userToIdMap = objectFlip(idToUserMap)
 
 const PREFIX = "!rice "
 
@@ -67,12 +54,6 @@ client.on('ready', () => {
                 auctionInProgress: false
             }
             fs.renameSync('./auction.json', './auction.json-' + Date.now())
-            // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-            //     if (err) {
-            //         console.log('error', err);
-            //         testChannel.send('Error writing `auction.json`. Check logs for details.')
-            //     }
-            // })
             saveJsonToFile(auction, './auction.json', testChannel)
         }
     } else {
@@ -94,12 +75,6 @@ client.on('ready', () => {
 
             bids = {}
             fs.renameSync('./bids.json', './bids.json-' + Date.now())
-            // fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-            //     if (err) {
-            //         console.log('error', err);
-            //         testChannel.send('Error writing `bids.json`. Check logs for details.')
-            //     }
-            // })
             saveJsonToFile(bids, './bids.json', testChannel)
         }
     }
@@ -115,12 +90,6 @@ client.on('ready', () => {
             console.log("Error parsing prizes.json, initializing with empty json.")
             prizes = {}
             fs.renameSync('./prizes.json', './prizes.json-' + Date.now())
-            // fs.writeFile('./prizes.json', JSON.stringify(prizes), function(err, result) {
-            //     if (err) {
-            //         console.log('error', err);
-            //         testChannel.send('Error writing `prizes.json`. Check logs for details.')
-            //     }
-            // })
             saveJsonToFile(prizes, './prizes.json', testChannel)
         }
     }
@@ -136,12 +105,6 @@ client.on('ready', () => {
             console.log("Error parsing scoreboard.json, initializing with empty json.")
             scoreboard = {}
             fs.renameSync('./scoreboard.json', './scoreboard.json-' + Date.now())
-            // fs.writeFile('./scoreboard.json', JSON.stringify(scoreboard), function(err, result) {
-            //     if (err) {
-            //         console.log('error', err);
-            //         testChannel.send('Error writing `scoreboard.json`. Check logs for details.')
-            //     }
-            // })
             saveJsonToFile(scoreboard, './scoreboard.json', testChannel)
         }
     }
@@ -157,12 +120,6 @@ client.on('ready', () => {
             idToUserMap = {}
             userToIdMap = {}
             fs.renameSync('./users.json', './users.json-' + Date.now())
-            // fs.writeFile('./users.json', JSON.stringify(idToUserMap), function(err, result) {
-            //     if (err) {
-            //         console.log('error', err);
-            //         testChannel.send('Error writing `users.json`. Check logs for details.')
-            //     }
-            // })
             saveJsonToFile(idToUserMap, './users.json', testChannel)
         }
     } else {
@@ -259,8 +216,6 @@ client.on('message', msg => {
                 }
             }
 
-            // let scoreboardData = fs.readFileSync('./scoreboard.json')
-            // scoreboard = JSON.parse(scoreboardData)
             for (const name of losePoints) {
                 if (scoreboard[name] == null) {
                     scoreboard[name] = -1
@@ -313,10 +268,6 @@ client.on('message', msg => {
         switch(args[0].toLowerCase()) {
             case 'rollcall':
                 let roll = '';
-                // const thots = thotServer.members.cache
-                // thots.forEach(function(guildMember, guildMemberId) {
-                //     roll += guildMemberId + ' - ' + guildMember.user.username + '\n';
-                // })
                 thots.forEach(function(user, userId) {
                     roll += userId + ' - ' + user.username + '\n';
                 })
@@ -324,7 +275,6 @@ client.on('message', msg => {
                 break;
             case 'whois':
                 if (args[1]) {
-                    //const user = getUserFromMention(args[1])
                     const name = getNameFromMention(args[1])
                     msg.channel.send('That\'s ' + name + '!')
                 }
@@ -333,8 +283,6 @@ client.on('message', msg => {
             /* actual functionality */
             case 'scoreboard':
                 // display scoreboard, sorted from most points to least
-                // let scoreboardData = fs.readFileSync('./scoreboard.json')
-                // scoreboard = JSON.parse(scoreboardData)
                 const sortedScoreboard = sortByValue(scoreboard)
 
                 let scoreMessage = '';
@@ -388,12 +336,6 @@ client.on('message', msg => {
                                 'auctioneer': idToUserMap[msg.author.id]
                             }
                             console.log(auction)
-                            // fs.writeFile('./auction.json', JSON.stringify(auction), function(err, result) {
-                            //     if (err) {
-                            //         console.log('error', err);
-                            //         msg.channel.send('Error writing `auction.json`. Check logs for details.')
-                            //     }
-                            // })
                             saveJsonToFile(auction, './auction.json', msg.channel)
                             msg.channel.send(auction.auctioneer + " started a new auction for " + name)
                         }
@@ -425,9 +367,6 @@ client.on('message', msg => {
                             msg.channel.send('Error making bid: Invalid input.\n'
                                 + 'Usage: `!rice bid <bid amount>`')
                         } else {
-                            // let bidsData = fs.readFileSync('./bids.json')
-                            // bids = JSON.parse(bidsData)
-
                             // catch duplicate bid amounts
                             let bidValues = Object.values(bids)
                             let dupeBidIndex = bidValues.indexOf(bid)
@@ -439,12 +378,6 @@ client.on('message', msg => {
                             const bidder = idToUserMap[msg.author.id]
                             if (bids[bidder] == null) {
                                 bids[bidder] = bid;
-                                // fs.writeFile('./bids.json', JSON.stringify(bids), function(err, result) {
-                                //     if (err) {
-                                //         console.log('error', err);
-                                //         msg.channel.send('Error writing `bids.json`. Check logs for details.')
-                                //     }
-                                // })
                                 saveJsonToFile(bids, './bids.json', msg.channel)
                                 msg.channel.send(bidder + " bids $" + bid)
                             } else {
@@ -453,7 +386,7 @@ client.on('message', msg => {
                             }
 
                             // if this is the last bid, end the auction
-                            // minus 1 for auctioneer, minus 1 for current bid
+                            // minus 1 for auctioneer, minus 1 for current bidder
                             if (bidValues.length == ricerIds.length - 2) {
                                 endAuction()
                             }
@@ -507,28 +440,18 @@ client.on('message', msg => {
                     msg.channel.send("Cannot determine name parameter.")
                     break;
                 }
+                const prizeList = prizes[name]
 
-                // name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+                if (prizeList == null) {
+                    msg.channel.send("No prizes found.")
+                    break;
+                }
 
-                // prizesData = fs.readFileSync('./prizes.json')
-                // try {
-                    // prizes = JSON.parse(prizesData)
-                    const prizeList = prizes[name]
-
-                    if (prizeList == null) {
-                        msg.channel.send("No prizes found.")
-                        break;
-                    }
-
-                    let messageText = '';
-                    for (let i=0; i < prizeList.length; i++) {
-                        messageText += "\n" + prizeList[i]
-                    }
-                    msg.channel.send(name + "'s Prizes:" + messageText)
-                // } catch (e) {
-                    // console.log(e)
-                    // msg.channel.send('Error reading `prizes.json`. Check logs for details.')
-                // }
+                let messageText = '';
+                for (let i=0; i < prizeList.length; i++) {
+                    messageText += "\n" + prizeList[i]
+                }
+                msg.channel.send(name + "'s Prizes:" + messageText)
                 break;
             case 'ping':
                 // pings opted-in users who haven't voted this round
