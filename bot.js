@@ -230,6 +230,43 @@ function updateName(member, existingName, nickname, msg) {
     }
 }
 
+function getLoserMessage(itemName) {
+    const loserMessages = [
+        'I can\'t believe it\'s not ' + itemName + '. Everybody loses points!',
+        'Everybody overbid! Nobody gets ' + itemName + ' and everyone loses points!',
+        itemName + ' gets thrown into the rice machine! ' +
+        'It\'s lose points o\'clock, gamers!' +
+        'kinda cringe bids on this one :/' + 
+        'Say goodbye to ' + itemName + ', and to your points!',
+        'Everyone loses points. Go again!'
+    ]
+    return loserMessages[Math.floor(Math.random() * loserMessages.length)]
+}
+
+function getWinnerMessage(winner, itemName) {
+    const winnerMessages = [
+        'Congratulations, '+ winner + '! Enjoy your new ' + itemName + '!',
+        winner + ' is the proud owner of a new ' + itemName + '!',
+        winner + '\'s price gets all the rice!',
+        'And the winner is... ' + winner + '!',
+        'A round of applause for ' + winner + ' and their brand new ' + itemName + '!',
+        'Congrats on the new ' + itemName + ', ' + winner + '!',
+        winner + '! A new ' + itemName + ' is now yours!',
+        'A winner is you! Enjoy the ' + itemName + ', ' + winner + '!',
+        itemName + ' rice goes to ' + winner + '!'
+    ]
+    return winnerMessages[Math.floor(Math.random() * winnerMessages.length)]
+}
+
+function getDoubleWinnerMessage(winner, itemName) {
+    const winnerMessages = [
+        'Double points for '+ winner + '!!! Enjoy your new ' + itemName + '!',
+        'Ding ding ding! Two points for ' + winner + '\'s perfect guess!',
+        winner + ' gets two points and a new ' + itemName + '!'
+    ]
+    return winnerMessages[Math.floor(Math.random() * winnerMessages.length)]
+}
+
 client.on('message', msg => {
     if (msg.content.toLowerCase() === 'ping') {
         console.log(msg.author.id)
@@ -292,19 +329,31 @@ client.on('message', msg => {
 
             saveJsonToFile({}, './bids.json', msg.channel)
 
-            msg.channel.send("Auction ended for " + auction.itemName + ".\n"
-            + "The price is $" + auction.price + ".")
-            if (winningPrice == -1) {
-                msg.channel.send("Everyone loses points! GO AGAIN!")
-            } else if (winningPrice == auction.price) {
-                msg.channel.send('Double points for '+ winner + '!!! Enjoy your new ' + auction.itemName + '!')
+            msg.channel.send("Auction ended for " + auction.itemName + '. '
+            + "The price is $" + auction.price + "!")
+            
+            if (Object.entries(bids).length == 0) {
+                msg.channel.send('No bidders this round, scores left unchanged.')
             } else {
-                msg.channel.send('Congratulations, '+ winner + '! Enjoy your new ' + auction.itemName + '!')
+                let nextAuctioneer = ''
+                if (winningPrice == -1) {
+                    msg.channel.send(getLoserMessage(auction.itemName))
+                    nextAuctioneer = auction.auctioneer
+                } else if (winningPrice == auction.price) {
+                    msg.channel.send(getDoubleWinnerMessage(auction.itemName))
+                    nextAuctioneer = winner
+                } else {
+                    msg.channel.send(getWinnerMessage(auction.itemName))
+                    nextAuctioneer = winner
+                }
+                if (winner != null) {
+                    msg.channel.send('<@' + userToIdMap[winner] + '>, it\'s your turn to rice!')
+                }
             }
         }
     }
 
-    let role = msg.guild.roles.cache.find(r => r.name === "ricer");
+    let role = msg.guild.roles.cache.get(process.env.RICER_ROLE);
     let ricerIds = role.members.map(m => m.user.id)
 
     if (msg.content.substring(0, PREFIX.length).toLowerCase() == PREFIX) {
